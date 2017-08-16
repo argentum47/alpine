@@ -1,3 +1,4 @@
+from os.path import isfile
 from kivy.app import App
 from kivy.uix.widget import Widget
 from kivy.core.window import Window
@@ -14,10 +15,13 @@ class MusicPlayer(Widget):
     event = None
     isPlaying = False
     songs = []
+    buttons = []
+    playing_bg = (1.0, 0.5, 0.3, 1)
+    normal_bg = (0.0, 0.0, 0.0, 0.2)
 
     def __init__(self, **kwargs):
         super(MusicPlayer, self).__init__(**kwargs)
-        Window.size = (600, 100)
+        Window.size = (600, 400)
         self._keyboard = Window.request_keyboard(self._keyboard_closed, self)
         self._keyboard.bind(on_key_down=self._on_keyboard_down)
 
@@ -37,10 +41,28 @@ class MusicPlayer(Widget):
             App.get_running_app().stop()
 
         return True
+    
+    def play_song(self, btninstance):
+        self.buttons[self.index].background_color = self.normal_bg
+        btninstance.background_color = self.playing_bg
+        self.play(int(btninstance.id), True)
 
     def add_songs(self, songs):
         self.songs = songs
         self.index = 0
+
+        for idx, song in enumerate(songs):
+            song_text = song.rpartition('/')[-1]
+            btn = Button(text=song_text, background_color=self.normal_bg, size=(1200, 40), size_hint=(None, None))
+            btn.background_normal = ''
+            btn.padding_y = 40 # not working
+            btn.text_size = (1100, None)
+            btn.shorten = True
+            btn.id = str(idx)
+            btn.shorten_from = 'right'
+            btn.bind(on_press=self.play_song)
+            self.buttons.append(btn)
+            self.ids.scroll.add_widget(btn)
 
         if len(songs) > 0:
             self.nowPlaying = self.load_song(self.index)
@@ -54,7 +76,7 @@ class MusicPlayer(Widget):
             self.index = index
 
 
-        song = self.songs[self.index].rstrip()
+        song = self.songs[self.index]
         self.ids.filename.text = song.rpartition('/')[-1]
 
         return SoundLoader.load(song)
@@ -65,7 +87,7 @@ class MusicPlayer(Widget):
 
         if self.nowPlaying.state == "stop":
             self.event.cancel()
-            ## gana khatam go to next song
+            ## go to next song
             if self.isPlaying:
                 self.play(self.index + 1, self.isPlaying)
             return
@@ -76,6 +98,8 @@ class MusicPlayer(Widget):
         if not self.nowPlaying:
             return
 
+        self.buttons[self.index].background_color = self.normal_bg
+
         self.pause()
         self.nowPlaying.unload()
         self.nowPlaying = self.load_song(index)
@@ -84,6 +108,8 @@ class MusicPlayer(Widget):
             self.event.cancel()
 
         self.event = Clock.schedule_interval(self.update_progress_bar, 1/25.)
+        self.buttons[self.index].background_color = self.playing_bg
+        self.ids.scrollview.scroll_to(self.buttons[self.index], animate=True)
 
         if shouldPlay:
             self.isPlaying = True
@@ -128,16 +154,20 @@ class MusicPlayer(Widget):
             if widget.__self__ == instance:
                 return id
 
-class AudioButton(Button):
-    pass
 
 class MusicApp(App):
     def build(self):
+        song_paths = []
         with open('playlist.txt', 'r') as f:
             lines = f.readlines()
 
+        for l in lines:
+            if isfile(l.rstrip()):
+                song_paths.append(l.rstrip()) 
+
         music = MusicPlayer(size=(600, 100))
-        music.add_songs(lines)
+
+        music.add_songs(song_paths)
 
         return music
 
